@@ -9,12 +9,12 @@ endmsg = "\r\n.\r\n"
 mailserver_163 = 'smtp.163.com'
 mailserver_163_SMTP_Port = 25
 mailserver_163_SMTP_LoginID = base64.b64encode(
-    b'lov******@163.com').decode() + '\r\n'
+    b'ceyewan@163.com').decode() + '\r\n'
 mailserver_163_SMTP_Password = base64.b64encode(
-    b'ZLVZ**********').decode() + '\r\n'
+    b'VYE*******XZE').decode() + '\r\n'
 
-From = 'lov******@163.com'
-To = '22*********@qq.com'
+From = 'ceyewan@163.com'
+To = 'ceyewan@qq.com'
 
 # Create socket called clientSocket and establish a TCP connection with mailserver
 clientSocket = socket(AF_INET, SOCK_STREAM)
@@ -27,7 +27,7 @@ if recv[:3] != '220':
     exit(0)
 
 # Send HELO command and print server response.
-heloCommand = 'HELO Love6\r\n'
+heloCommand = 'HELO ceyewan\r\n'
 clientSocket.send(heloCommand.encode())
 recv1 = clientSocket.recv(1024).decode()
 print(recv1, end='')
@@ -89,9 +89,10 @@ if recv7[:3] != '354':
     clientSocket.close()
     exit(0)
 
+# format
 send = "From: " + From + '\r\n'
 send += "To: " + To + '\r\n'
-send += "Subject: " + "First Web Mail Test From Love6" + '\r\n'
+send += "Subject: " + "SMTP lab" + '\r\n'
 send += msg
 clientSocket.send(send.encode())
 clientSocket.send(endmsg.encode())

@@ -51,7 +51,7 @@ while True:
             try:
                 # Connect to the socket to port 80
                 serverName = hostn.partition("/")[0]
-                serverPort = 8888
+                serverPort = 80
                 print((serverName, serverPort))
                 c.connect((serverName, serverPort))
                 askFile = ''.join(filename.partition('/')[1:])
