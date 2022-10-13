@@ -1,5 +1,3 @@
-
-
 ### 应用层协议原理
 
 #### 网络应用程序体系结构
@@ -123,6 +121,59 @@ Web 缓存为了保证其中存储的数据是最新的，会使用条件 GET �
 ### 因特网中的电子邮件
 
 因特网电子邮件系统有 3 个主要组成部分：用户代理 (user agent) 、 邮件服务器 (mail server) 和简单邮件传输协议 ( Simple Mail Transfer Protocol, SMTP ) 。
+
+发送邮件的流程基本如下：
+
+1. A 调用她的邮箱代理程序并提供 B 的邮件地址，撰写报文，然后指示用户代理发送该报文。
+2. A 的用户代理把报文发给他的邮件服务器，在那里该报文被放在报文队列中。
+3. 运行在 A 的邮件服务器上的 SMTP 客户端发现了报文队列中的报文，就创建一个到运行在 B 的邮件服务器上的 SMTP 客户端的 TCP 连接。
+4. 在经过一些 SMTP 握手后，通过 TCP 连接发送报文
+5. B 的邮件服务器上，SMTP 的服务端接收该报文，然后将报文放入 B 的邮箱中
+6. 在 B 方便的时候，调用用户代理阅读该报文。
+
+![image-20221013154825090](https://image.ceyewan.top/typora/image-20221013154825090.png)
+
+其中步骤 4 使用的是 SMTP 协议，而 6 可以使用 POP3（第三版的邮局协议）、IMAP（因特网邮件访问协议）和 HTTP 协议。
+
+在 SMTP 协议中，如果服务端和客户端建立了 TCP 连接之后，需要做下面这些过程（我们后面的实验会用到）：
+
+![image-20221013155225736](https://image.ceyewan.top/typora/image-20221013155225736.png)
+
+我们可以使用 `telnet serverName 25` 来与一个 SMTP 服务器进行一次对话：
+
+```shell
+telnet smtp.163.com 25 # 执行命令
+# Trying 220.181.15.161...
+# Connected to smtp.163.com.
+# Escape character is '^]'.
+# 220 163.com Anti-spam GT for Coremail System (163com[20141201])
+HELO ceyewan # HELLO
+250 OK
+AUTH LOGIN # 认证一些，需要去 163 邮箱打开 pop3 服务
+334 dXNlcm5hbWU6
+Y2******29t # 用户名的 base64 编码
+334 UGFzc3dvcmQ6
+Vll******aRQ== # 打开 pop3 服务得到的授权码的 base64 编码
+235 Authentication successful
+MAIL FROM <ceyewan@163.com> # mail from
+250 Mail OK
+RCPT TO <ceyewan@qq.com> # rcpt to
+250 Mail OK
+DATA # 输入正文
+354 End data with <CR><LF>.<CR><LF>
+From: ceyewan@163.com
+To: ceyewan@qq.com
+Subject: SMTP lab
+
+hello ceyewan
+.
+250 Mail OK queued as smtp8,DMCowACnmy1mykdjFVsihA--.63140S2 1665649380
+QUIT # 断开连接
+221 Bye
+Connection closed by foreign host.
+```
+
+这样我们就模拟登录了 163 邮箱的邮件服务器和 qq 邮箱的邮件服务器进行了一次 SMTP 协议的邮件通信。
 
 ### DNS：因特网的目录服务
 
@@ -369,7 +420,126 @@ for i in range(10):
 
 ![image-20221011180301124](https://image.ceyewan.top/typora/image-20221011180301124.png)
 
-暂略
+上面已经分析过了，所以直接看代码：
+
+```python
+from socket import *
+import sys
+import base64
+
+msg = "\r\n I love computer networks!"
+endmsg = "\r\n.\r\n"
+
+# Choose a mail server (e.g. Google mail server) and call it mailserver
+mailserver_163 = 'smtp.163.com'
+mailserver_163_SMTP_Port = 25
+mailserver_163_SMTP_LoginID = base64.b64encode(
+    b'ceyewan@163.com').decode() + '\r\n'
+mailserver_163_SMTP_Password = base64.b64encode(
+    b'VYE*******XZE').decode() + '\r\n'
+
+From = 'ceyewan@163.com'
+To = 'ceyewan@qq.com'
+
+# Create socket called clientSocket and establish a TCP connection with mailserver
+clientSocket = socket(AF_INET, SOCK_STREAM)
+clientSocket.connect((mailserver_163, mailserver_163_SMTP_Port))
+recv = clientSocket.recv(1024).decode()
+print(recv, end='')
+if recv[:3] != '220':
+    print('220 reply not received from server.')
+    clientSocket.close()
+    exit(0)
+
+# Send HELO command and print server response.
+heloCommand = 'HELO ceyewan\r\n'
+clientSocket.send(heloCommand.encode())
+recv1 = clientSocket.recv(1024).decode()
+print(recv1, end='')
+if recv1[:3] != '250':
+    print('250 reply not received from server.')
+    clientSocket.close()
+    exit(0)
+
+logCommand = 'AUTH LOGIN\r\n'
+clientSocket.send(logCommand.encode())
+recv2 = clientSocket.recv(1024).decode()
+print(recv2, end='')
+if recv2[:3] != '334':
+    print('334 login server goes wrong')
+    clientSocket.close()
+    exit(0)
+
+clientSocket.send(mailserver_163_SMTP_LoginID.encode())
+recv3 = clientSocket.recv(1024).decode()
+print(recv3, end='')
+if recv3[:3] == '535':
+    print('Login ID wrong')
+    clientSocket.close()
+    exit(0)
+
+clientSocket.send(mailserver_163_SMTP_Password.encode())
+recv4 = clientSocket.recv(1024).decode()
+print(recv4, end='')
+if recv4[:3] == '535':
+    print('Password wrong')
+    clientSocket.close()
+    exit(0)
+
+fromCommand = 'MAIL FROM ' + '<' + From + '>' + '\r\n'
+clientSocket.send(fromCommand.encode())
+recv = clientSocket.recv(2048).decode()
+print(recv, end='')
+if recv[:3] != '250':
+    print('Mail From server goes wrong')
+    clientSocket.close()
+    exit(0)
+
+
+toCommand = 'RCPT TO: ' + '<' + To + '>' + '\r\n'
+clientSocket.send(toCommand.encode())
+recv6 = clientSocket.recv(1024).decode()
+print(recv6, end='')
+if recv6[:3] != '250':
+    print('Mail to server goes wrong')
+    clientSocket.close()
+    exit(0)
+
+beginCommand = 'DATA\r\n'
+clientSocket.send(beginCommand.encode())
+recv7 = clientSocket.recv(1024).decode()
+print(recv7, end='')
+if recv7[:3] != '354':
+    print('Data Begin server goes wrong')
+    clientSocket.close()
+    exit(0)
+
+# format
+send = "From: " + From + '\r\n'
+send += "To: " + To + '\r\n'
+send += "Subject: " + "SMTP lab" + '\r\n'
+send += msg
+clientSocket.send(send.encode())
+clientSocket.send(endmsg.encode())
+recv8 = clientSocket.recv(1024).decode()
+print(recv8, end='')
+if recv8[:3] != '250':
+    print('Data Transport goes wrong')
+    clientSocket.close()
+    exit(0)
+
+endCommand = 'QUIT\r\n'
+clientSocket.send(endCommand.encode())
+recv9 = clientSocket.recv(1024).decode()
+print(recv9, end='')
+if recv9[:3] != '221':
+    print('server end goes wrong')
+    clientSocket.close()
+    exit(0)
+clientSocket.close()
+```
+
+![image-20221013164342692](https://image.ceyewan.top/typora/image-20221013164342692.png)
 
 #### ProxyServer
 
@@ -479,6 +649,6 @@ while True:
 tcpSerSock.close()
 ```
 
-这个代码我调了好久，一直不能正确运行。我估计是因为现在大多是网站都是用的 HTTPS 协议，就算制定了端口为 443 ，需要的首部之类的也会有区别，从而得不到正确的结果。因此，这里我使用的 WebServer 创建的本地服务器作为服务器，然后浏览器作为客户端，ProxyServer 作为代理服务器。
+这个代码我调了好久，一直不能正确运行。我估计是因为现在大多是网站都是用的 HTTPS 协议，就算制定了端口为 443 ，需要的首部之类的也会有区别，从而得不到正确的结果。因此，这里我使用的 WebServer 创建的本地服务器作为服务器，然后浏览器作为客户端，ProxyServer 作为代理服务器。一些简单的 http 的网站也行，反正百度我是没成。
 
-![image-20221011170447490](https://image.ceyewan.top/typora/image-20221011170447490.png)
+![image-20221013165315016](https://image.ceyewan.top/typora/image-20221013165315016.png)
